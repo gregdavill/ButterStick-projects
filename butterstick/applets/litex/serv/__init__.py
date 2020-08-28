@@ -5,6 +5,9 @@
 
 from migen import *
 from .. import Applet
+#from litex.soc import BaseSeC
+
+from litex.soc.integration.soc_core import *
 
 from migen.genlib.resetsync import AsyncResetSynchronizer
 from litex.soc.cores.clock import *
@@ -29,7 +32,7 @@ class CRG(Module):
         self.submodules.pll = pll = ECP5PLL()
         pll.register_clkin(clk, 30e6)
         pll.create_clkout(self.cd_sys, 60e6)
-        pll.create_clkout(self.cd_usb, 60e6)
+#        pll.create_clkout(self.cd_usb, 60e6)
 
         self.comb += self.cd_sys.rst.eq(~pll.locked)
         self.comb += self.cd_usb.rst.eq(~pll.locked)
@@ -40,9 +43,26 @@ class CRG(Module):
 
 
 
-class SoCApplet(Applet, applet_name="litex.luna"):
+class SoCApplet(Applet, SoCCore, applet_name="litex.serv"):
     def __init__(self, args, platform):
         self.submodules.crg = CRG(platform)
+        platform = platform
+        # SoCCore ----------------------------------------------------------------------------------
+        SoCCore.__init__(self, platform, 60e6,
+            ident          = "LiteX SoC",
+            ident_version  = True,
+            cpu_type       = "serv",
+
+            integrated_rom_size = 32 * 1024,
+            uart_name           = "stream",
+            )
+
+
+        cpu_release = Signal()
+
+        self.comb += self.cpu.reset.eq(~cpu_release)
+
+        
 
         counter = Signal(24)
 
@@ -59,7 +79,7 @@ class SoCApplet(Applet, applet_name="litex.luna"):
 
         self.params = dict(
             # Clock / Reset
-            i_clk_usb   = ClockSignal("usb"),
+            i_clk_usb   = ClockSignal("sys"),
             i_clk_sync   = ClockSignal("sys"),
             i_rst_sync   = ResetSignal(),
 
@@ -88,17 +108,28 @@ class SoCApplet(Applet, applet_name="litex.luna"):
         )
 
 
-        # Loopback toggle case
+        # Connect UART stream to CPU
         self.comb += [
             # Litex ordering when connecting streams:
             #  [Source] -> connect -> [Sink]
-            usb_rx.connect(usb_tx),
-
-            # If we have [A-Za-z] toggle case
-            If(((usb_rx.data >= ord('A')) & (usb_rx.data <= ord('Z'))) | ((usb_rx.data >= ord('a')) & (usb_rx.data <= ord('z'))),
-                usb_tx.data.eq(usb_rx.data ^ 0x20)
-            )
+            self.uart.source.connect(usb_tx, omit={'last'}),
+            usb_rx.connect(self.uart.sink),
+            usb_tx.last.eq(1),
         ]
+
+        self.sync += [
+            #If(usb_tx.ready,
+            #)
+        ]
+
+
+        # Hold CPU in reset until we transmit a char, 
+        # this avoids the CPU transmitting data to the USB core before it's properly enumerated.
+        self.sync += [
+            If(usb_rx.valid,
+                cpu_release.eq(1)
+            )
+        ] 
 
 
         # ButterStick r1.0 requires 
@@ -121,8 +152,10 @@ class SoCApplet(Applet, applet_name="litex.luna"):
             platform.request("leda").eq(1),
             platform.request("ledc").eq(counter[23])
         ]
+    def finalize(self):
+        SoCCore.finalize(self)
         
-    def do_finalize(self):
         self.specials += Instance("USBSerialDevice",
             **self.params
         )
+        

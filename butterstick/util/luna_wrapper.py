@@ -15,8 +15,11 @@ def luna_wrapper(platform, elaboratable):
 
     verilog_text = verilog.convert(elaboratable, name="USBSerialDevice", ports=ports)
     verilog_file = "build/luna_wrapper.USBSerialDevice.v"
+    
+    vdir = os.path.join(os.getcwd(), "build")
+    os.makedirs(vdir, exist_ok=True)
+
     with open(verilog_file, "w") as f:
         f.write(verilog_text)
 
-    vdir = os.path.join(os.getcwd(), "build")
     platform.add_source(os.path.join(vdir, "luna_wrapper.USBSerialDevice.v"))

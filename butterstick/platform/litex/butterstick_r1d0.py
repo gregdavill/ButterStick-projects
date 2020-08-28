@@ -37,6 +37,7 @@ class ButterStickPlatform(LatticePlatform):
     def __init__(self, **kwargs):
         LatticePlatform.__init__(self, "LFE5UM5G-85F-8BG381C", _butterstick_r1d0_io, _connectors, toolchain="trellis", **kwargs)
         self.toolchain.build_template[2] += ' --compress'
+        self.toolchain.build_template[1] += ' --log {build_name}.tim'
        
     def do_finalize(self, fragment):
         LatticePlatform.do_finalize(self, fragment)

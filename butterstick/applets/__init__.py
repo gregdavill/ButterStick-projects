@@ -12,3 +12,4 @@ from .nmigen import usb_acm
 
 from .litex import litex_blinky
 from .litex import litex_luna
+from .litex import serv

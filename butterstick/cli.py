@@ -8,6 +8,8 @@ import subprocess
 from .applets import *
 from .applets.nmigen import Applet as nmigenApplet
 from .applets.litex import Applet as litexApplet
+from litex.soc.integration.soc_core import *
+from litex.soc.integration.builder import *
 
 
 from .platform.butterstick import ButterStickPlatform as nmigen_ButterStickPlatform
@@ -97,9 +99,15 @@ def main():
         platform = nmigen_ButterStickPlatform()
         platform.build(applet_cls(args=args), **build_args)
     
-    if issubclass(applet_cls,litexApplet):
+    
+    elif issubclass(applet_cls,litexApplet):
         platform = litex_ButterStickPlatform()
-        platform.build(applet_cls(args=[], platform=platform))
+        applet = applet_cls(args=[], platform=platform)
+        if issubclass(applet_cls,SoCCore):
+            builder = Builder(applet)
+            builder.build()
+        else:
+            platform.build(applet)
         if args.action == "run":
             subprocess.check_call(["glasgow", "run", "program-ecp5-sram", "--voltage", "3.3", "-f", "2000", "--pin-tck", "0", "--pin-tms", "3", "--pin-tdi", "1", "--pin-tdo", "2", "build/top.bit"])
 
